@@ -1,0 +1,10 @@
+GESTOR DE DEMANDAS - PROJETO ANDROID
+
+Este projeto usa o index.html enviado pelo usuário e inclui:
+- WebView Android
+- permissões de localização fina e aproximada
+- solicitação da permissão de localização
+- suporte à geolocalização do HTML
+
+IMPORTANTE:
+Este arquivo é o projeto-fonte Android. Para instalar diretamente no celular é necessário compilar um APK em um ambiente Android/Android Studio.
