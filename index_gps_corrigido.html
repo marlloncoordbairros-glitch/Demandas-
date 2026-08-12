@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1769d1">
+  <link rel="manifest" href="manifest.json">
+<title>Gestor de Demandas</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#1769d1;color:white;padding:22px 18px;border-radius:0 0 24px 24px}
+header h1{margin:0;font-size:24px} header p{margin:7px 0 0;opacity:.9}
+main{max-width:760px;margin:auto;padding:18px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:18px 0}
+.card{background:white;padding:18px;border-radius:16px;box-shadow:0 2px 10px #0000000d}.card strong{font-size:28px;display:block}.card span{color:#687386;font-size:13px}
+button{border:0;border-radius:12px;padding:13px 16px;font-weight:bold;cursor:pointer}
+.primary{background:#1769d1;color:white;width:100%;font-size:16px}
+section{background:white;padding:18px;border-radius:18px;margin-top:16px;box-shadow:0 2px 10px #0000000d}
+h2{font-size:19px;margin-top:0}
+label{display:block;font-size:13px;font-weight:bold;margin:12px 0 6px}
+input,select,textarea{width:100%;padding:13px;border:1px solid #d9e0ea;border-radius:10px;font-size:15px}
+textarea{min-height:100px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.success{display:none;background:#e7f7ed;color:#14753c;padding:12px;border-radius:10px;margin-top:12px}
+.list{margin-top:15px}.item{border:1px solid #e1e7ef;border-radius:12px;padding:13px;margin:9px 0}
+.item b{display:block;margin-bottom:5px}.tag{display:inline-block;background:#edf4ff;color:#1769d1;border-radius:20px;padding:5px 9px;font-size:11px}
+.search{margin-top:10px}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Gestor de Demandas</h1>
+  <p>Registro e acompanhamento das solicitações dos moradores</p>
+</header>
+<main>
+  <div class="cards">
+    <div class="card"><strong id="total">0</strong><span>Total de demandas</span></div>
+    <div class="card"><strong id="pendentes">0</strong><span>Pendentes</span></div>
+    <div class="card"><strong id="encaminhadas">0</strong><span>Encaminhadas</span></div>
+    <div class="card"><strong id="resolvidas">0</strong><span>Resolvidas</span></div>
+  </div>
+
+  <section>
+    <h2>➕ Nova demanda</h2>
+    <form id="form">
+      <label>Nome do morador *</label><input id="nome" required>
+      <div class="row">
+        <div><label>Telefone</label><input id="telefone"></div>
+        <div><label>Número da casa</label><input id="numero"></div>
+      </div>
+      <div class="row">
+        <div><label>Rua</label><input id="rua"></div>
+        <div><label>Bairro</label><input id="bairro"></div>
+      </div>
+      <div class="row">
+        <div><label>Quadra</label><input id="quadra"></div>
+        <div><label>Lote</label><input id="lote"></div>
+      </div>
+      <label>Categoria *</label>
+      <select id="categoria" required>
+        <option value="">Selecione</option>
+        <option>Iluminação pública</option><option>Rua / pavimentação</option>
+        <option>Limpeza / lixo</option><option>Água / esgoto</option>
+        <option>Saúde</option><option>Obras</option><option>Outro</option>
+      </select>
+      <label>Descrição da demanda *</label><textarea id="descricao" required></textarea>
+      <div class="row">
+        <div><label>Prioridade</label><select id="prioridade"><option>Normal</option><option>Alta</option><option>Urgente</option></select></div>
+        <div><label>Secretaria responsável</label><input id="secretaria" placeholder="Ex.: Obras"></div>
+      </div>
+
+      <label>Localização GPS</label>
+      <div class="row">
+        <div><input id="latitude" placeholder="Latitude" readonly></div>
+        <div><input id="longitude" placeholder="Longitude" readonly></div>
+      </div>
+      <button type="button" id="gpsBtn" style="width:100%;margin-top:10px;background:#eef5ff;color:#1769d1">
+        📍 Capturar localização atual
+      </button>
+      <div id="gpsStatus" style="font-size:13px;color:#687386;margin-top:7px"></div>
+      <label>Foto</label><input id="foto" type="file" accept="image/*">
+      <button class="primary" type="submit">Salvar demanda</button>
+      <div class="success" id="ok">✓ Demanda salva com sucesso!</div>
+    </form>
+  </section>
+
+  <section>
+    <h2>🔎 Demandas cadastradas</h2>
+    <input class="search" id="busca" placeholder="Pesquisar por nome, rua, bairro ou categoria">
+    <div class="list" id="lista"></div>
+  </section>
+</main>
+<script>
+const KEY='gestor_demandas_v1';
+let demandas=JSON.parse(localStorage.getItem(KEY)||'[]');
+const $=id=>document.getElementById(id);
+
+function atualizar(){
+  $('total').textContent=demandas.length;
+  $('pendentes').textContent=demandas.filter(x=>x.status==='Pendente').length;
+  $('encaminhadas').textContent=demandas.filter(x=>x.status==='Encaminhada').length;
+  $('resolvidas').textContent=demandas.filter(x=>x.status==='Resolvida').length;
+  render();
+}
+function render(){
+  const q=$('busca').value.toLowerCase();
+  const arr=demandas.filter(x=>[x.nome,x.rua,x.bairro,x.categoria].join(' ').toLowerCase().includes(q));
+  $('lista').innerHTML=arr.length?arr.map((x,i)=>`
+    <div class="item">
+      <b>${esc(x.nome)}</b>
+      <div>${esc(x.rua||'')} ${esc(x.numero||'')} — ${esc(x.bairro||'')}</div>
+      <div style="margin-top:7px"><span class="tag">${esc(x.categoria)}</span> <span class="tag">${esc(x.status)}</span></div>
+      <div style="font-size:13px;color:#687386;margin-top:7px">${esc(x.descricao)}</div>      ${x.latitude&&x.longitude?`<div style="font-size:12px;margin-top:7px">📍 ${esc(x.latitude)}, ${esc(x.longitude)} <a href="https://www.google.com/maps?q=${encodeURIComponent(x.latitude+','+x.longitude)}" target="_blank" rel="noopener">Abrir no mapa</a></div>`:''}
+    </div>`).join(''):'<p style="color:#687386">Nenhuma demanda encontrada.</p>';
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+
+$('gpsBtn').addEventListener('click',()=>{
+  const status=$('gpsStatus');
+  const btn=$('gpsBtn');
+
+  if(!navigator.geolocation){
+    status.textContent='❌ Geolocalização não está disponível neste dispositivo.';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='📍 Obtendo localização...';
+  status.textContent='Procurando sua localização. Aguarde...';
+
+  const sucesso=(pos)=>{
+    const lat=pos.coords.latitude;
+    const lon=pos.coords.longitude;
+    const precisao=pos.coords.accuracy;
+
+    $('latitude').value=lat.toFixed(6);
+    $('longitude').value=lon.toFixed(6);
+    status.textContent=`✓ Localização capturada (precisão aproximada: ${Math.round(precisao)} m)`;
+
+    btn.disabled=false;
+    btn.textContent='📍 Capturar localização atual';
+  };
+
+  const restaurarBotao=()=>{
+    btn.disabled=false;
+    btn.textContent='📍 Capturar localização atual';
+  };
+
+  const tentativaNormal=()=>{
+    navigator.geolocation.getCurrentPosition(
+      sucesso,
+      (err2)=>{
+        const msgs={
+          1:'❌ Permissão de localização negada. Ative a permissão de localização para este aplicativo nas configurações do Android.',
+          2:'❌ Não foi possível determinar a localização. Verifique se a Localização/GPS está ativada.',
+          3:'❌ O tempo para obter a localização terminou. Vá para um local com melhor sinal e tente novamente.'
+        };
+        status.textContent=msgs[err2.code]||'❌ Erro ao obter localização.';
+        restaurarBotao();
+      },
+      {enableHighAccuracy:false,timeout:30000,maximumAge:10000}
+    );
+  };
+
+  navigator.geolocation.getCurrentPosition(
+    sucesso,
+    (err)=>{
+      if(err.code===3){
+        status.textContent='⚠️ GPS demorou para responder. Tentando localização de rede...';
+        tentativaNormal();
+        return;
+      }
+
+      if(err.code===2){
+        status.textContent='⚠️ GPS não encontrou sinal. Tentando localização de rede...';
+        tentativaNormal();
+        return;
+      }
+
+      const msgs={
+        1:'❌ Permissão de localização negada. Ative a permissão de localização para este aplicativo nas configurações do Android.',
+        2:'❌ Não foi possível determinar a localização.',
+        3:'❌ Tempo esgotado ao obter a localização.'
+      };
+      status.textContent=msgs[err.code]||'❌ Erro ao obter localização.';
+      restaurarBotao();
+    },
+    {enableHighAccuracy:true,timeout:30000,maximumAge:0}
+  );
+});
+
+$('form').addEventListener('submit',e=>{
+ e.preventDefault();
+ const d={id:Date.now(),nome:$('nome').value,telefone:$('telefone').value,numero:$('numero').value,rua:$('rua').value,bairro:$('bairro').value,quadra:$('quadra').value,lote:$('lote').value,categoria:$('categoria').value,descricao:$('descricao').value,prioridade:$('prioridade').value,secretaria:$('secretaria').value,latitude:$('latitude').value,longitude:$('longitude').value,status:'Pendente',data:new Date().toLocaleDateString('pt-BR')};
+ demandas.unshift(d); localStorage.setItem(KEY,JSON.stringify(demandas)); $('form').reset(); $('ok').style.display='block'; setTimeout(()=>$('ok').style.display='none',2500); atualizar();
+});
+$('busca').addEventListener('input',render); atualizar();
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
